@@ -272,3 +272,48 @@ def test_repr():
 
     s = OrderedSet()
     assert str(s) == 'OrderedSet()'
+
+
+def test_free_cnt_after_huge_clear():
+
+    s = OrderedSet()
+    for i in range(200):
+        s.add(i)
+    s.clear()
+    assert s._free_cnt == 200
+
+
+def test_free_cnt_after_small_data_amount_clear():
+
+    s = OrderedSet()
+    for i in range(40):
+        s.add(i)
+    s.clear()
+    assert s._free_cnt == OrderedSet.BUFFER_THRESHOLD
+
+
+def test_free_cnt_after_discard_and_pop():
+
+    s = OrderedSet()
+    for i in range(50):
+        s.add(i)
+
+    for i in range(10):
+        s.discard(i)
+
+    for _ in range(10):
+        s.pop()
+
+    assert s._free_cnt == OrderedSet.BUFFER_THRESHOLD - 50 + 20
+
+
+def test_free_cnt_after_huge_clear_and_then_discard_all():
+
+    s = OrderedSet()
+    for i in range(200):
+        s.add(i)
+
+    for i in range(200):
+        s.discard(i)
+
+    assert s._free_cnt == OrderedSet.BUFFER_THRESHOLD

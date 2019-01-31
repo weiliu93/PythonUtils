@@ -14,13 +14,15 @@ class OrderedSet(MutableSet):
             self.prev = prev
             self.next = next
 
+    BUFFER_THRESHOLD = 100
+
     def __init__(self, iterable=None):
         self._head = self._tail = self.DoubleLinkedListNode()
         # here free linkedlist was regarded as a single linkedlist
         self._free_head = self.DoubleLinkedListNode()
         self._free_cnt = 0
         # at most buffer threshold number of list node
-        self._free_threshold = 100
+        self._free_threshold = self.BUFFER_THRESHOLD
         for _ in range(self._free_threshold):
             self._append_free_list_node(self.DoubleLinkedListNode())
         # from key -> DoubleLinkedListNode
