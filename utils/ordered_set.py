@@ -5,6 +5,7 @@ class OrderedSet(MutableSet):
     """
     Set without duplicate elements, keep all elements in inserted order
     """
+
     class DoubleLinkedListNode(object):
 
         __slots__ = ["key", "prev", "next"]
@@ -14,17 +15,15 @@ class OrderedSet(MutableSet):
             self.prev = prev
             self.next = next
 
-    BUFFER_THRESHOLD = 100
+    CHUNK_SIZE = 32
 
     def __init__(self, iterable=None):
         self._head = self._tail = self.DoubleLinkedListNode()
         # here free linkedlist was regarded as a single linkedlist
         self._free_head = self.DoubleLinkedListNode()
-        self._free_cnt = 0
-        # at most buffer threshold number of list node
-        self._free_threshold = self.BUFFER_THRESHOLD
-        for _ in range(self._free_threshold):
-            self._append_free_list_node(self.DoubleLinkedListNode())
+        # allocate buffer pool first
+        self._allocate_free_nodes(self.CHUNK_SIZE)
+        self._total_chunk = 1
         # from key -> DoubleLinkedListNode
         self._key_to_list_node_map = {}
         # initialize from external iterable
@@ -41,9 +40,10 @@ class OrderedSet(MutableSet):
     def discard(self, key):
         if key in self._key_to_list_node_map:
             list_node = self._key_to_list_node_map[key]
+            self._key_to_list_node_map.pop(key)
             self._remove_list_node(list_node)
             self._append_free_list_node(list_node)
-            self._key_to_list_node_map.pop(key)
+            self._shrink_free_list_if_necessary()
 
     def pop(self):
         if self._key_to_list_node_map:
@@ -52,6 +52,7 @@ class OrderedSet(MutableSet):
             self._key_to_list_node_map.pop(first_list_node.key)
             self._remove_list_node(first_list_node)
             self._append_free_list_node(first_list_node)
+            self._shrink_free_list_if_necessary()
             return result
         else:
             raise KeyError("pop from an empty set")
@@ -62,8 +63,8 @@ class OrderedSet(MutableSet):
             first, last = self._head.next, self._tail
             last.next = self._free_head.next
             self._free_head.next = first
-            self._head = self._tail = self.DoubleLinkedListNode()
-            self._free_cnt += len(self._key_to_list_node_map)
+            self._tail = self._head
+            self._head.next = self._tail.next = None
         self._key_to_list_node_map.clear()
 
     def __len__(self):
@@ -108,7 +109,8 @@ class OrderedSet(MutableSet):
     def _create_new_list_node(self, key):
         free_node = self._fetch_free_list_node()
         if not free_node:
-            free_node = self.DoubleLinkedListNode()
+            self._double_free_list()
+            free_node = self._fetch_free_list_node()
         free_node.key = key
         return free_node
 
@@ -131,20 +133,34 @@ class OrderedSet(MutableSet):
         return self._head.next
 
     def _append_free_list_node(self, node):
-        if self._free_cnt + 1 <= self._free_threshold:
-            node.next = self._free_head.next
-            self._free_head.next = node
-            self._free_cnt += 1
-        else:
-            # otherwise, discard current node
-            pass
+        node.next = self._free_head.next
+        self._free_head.next = node
+
+    def _allocate_free_nodes(self, size):
+        for _ in range(size):
+            new_node = self.DoubleLinkedListNode()
+            self._append_free_list_node(new_node)
+
+    def _double_free_list(self):
+        target_size = self.CHUNK_SIZE * self._total_chunk
+        self._allocate_free_nodes(target_size)
+        self._total_chunk <<= 1
+
+    def _shrink_free_list_if_necessary(self):
+        # if we have less than two chunks, we will never shrink it
+        if self._total_chunk > 2:
+            used, threshold = len(self), (self._total_chunk >> 2) * self.CHUNK_SIZE
+            if used <= threshold:
+                # TODO maybe we can optimize these codes
+                for _ in range((self._total_chunk >> 1) * self.CHUNK_SIZE):
+                    self._fetch_free_list_node()
+                self._total_chunk >>= 1
 
     def _fetch_free_list_node(self):
-        if self._free_cnt:
+        if self._free_head.next:
             free_node = self._free_head.next
             self._free_head.next = free_node.next
             free_node.next = free_node.prev = None
-            self._free_cnt -= 1
             return free_node
         else:
             return None

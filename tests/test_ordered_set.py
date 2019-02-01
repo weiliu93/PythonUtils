@@ -274,46 +274,74 @@ def test_repr():
     assert str(s) == 'OrderedSet()'
 
 
-def test_free_cnt_after_huge_clear():
+def test_chunk_num_double():
 
     s = OrderedSet()
-    for i in range(200):
+    for i in range(100):
         s.add(i)
-    s.clear()
-    assert s._free_cnt == 200
+    assert s._total_chunk == 4
 
 
-def test_free_cnt_after_small_data_amount_clear():
+def test_chunk_num_shrink():
 
     s = OrderedSet()
-    for i in range(40):
+    for i in range(1000):
         s.add(i)
-    s.clear()
-    assert s._free_cnt == OrderedSet.BUFFER_THRESHOLD
+    # current total number of free nodes is 1024
+    assert s._total_chunk == 32
 
-
-def test_free_cnt_after_discard_and_pop():
-
-    s = OrderedSet()
-    for i in range(50):
-        s.add(i)
-
-    for i in range(10):
-        s.discard(i)
-
-    for _ in range(10):
+    for i in range(800):
         s.pop()
+    # now the total number of free nodes is 512
+    assert s._total_chunk == 16
 
-    assert s._free_cnt == OrderedSet.BUFFER_THRESHOLD - 50 + 20
 
-
-def test_free_cnt_after_huge_clear_and_then_discard_all():
+def test_chunk_num_double_then_shrink():
 
     s = OrderedSet()
-    for i in range(200):
+    for i in range(1000):
         s.add(i)
+    assert s._total_chunk == 32
 
-    for i in range(200):
-        s.discard(i)
+    for i in range(800):
+        s.pop()
+    assert s._total_chunk == 16
 
-    assert s._free_cnt == OrderedSet.BUFFER_THRESHOLD
+    for i in range(1000):
+        s.add(i + 2000)
+    assert s._total_chunk == 64
+
+
+def test_list_size_is_valid():
+
+    def get_list_size(s):
+        node = s._head
+        ans = 0
+        while node.next != None:
+            node = node.next
+            ans += 1
+        return ans
+
+    def get_free_list_size(s):
+        node = s._free_head
+        ans = 0
+        while node.next != None:
+            node = node.next
+            ans += 1
+        return ans
+
+    s = OrderedSet()
+    ops = ['add', 'pop', 'discard']
+    for i in range(1000000):
+        op = ops[random.randint(0, 2)]
+        if op == 'add':
+            value = random.randint(1, 1000)
+            s.add(value)
+        elif op == 'pop':
+            if len(s) > 0:
+                s.pop()
+        else:
+            value = random.randint(1, 1000)
+            s.discard(value)
+        assert len(s) == get_list_size(s)
+        assert get_list_size(s) + get_free_list_size(s) == s._total_chunk * OrderedSet.CHUNK_SIZE
