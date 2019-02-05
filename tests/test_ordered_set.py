@@ -86,6 +86,18 @@ def test_ordered_set_clear():
     assert len(s) == 100
 
 
+def test_ordered_set_clear_then_clean_again():
+
+    s = OrderedSet()
+    for i in range(10):
+        s.add(i)
+    s.clear()
+    assert len(s) == 0
+
+    s.clear()
+    assert len(s) == 0
+
+
 def test_ordered_set_reverse():
 
     vis = set()
