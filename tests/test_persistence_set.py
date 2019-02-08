@@ -123,52 +123,150 @@ def test_len():
 
 def test_contains():
 
+    s1 = OrderedPersistenceSet()
+    s2 = set()
 
+    for _ in range(10000):
+        value = random.randint(1, 500)
+        assert (value in s1) == (value in s2)
+        s1 = s1.add(value)
+        s2.add(value)
 
-
-    pass
+    assert sorted(list(s1)) == sorted(list(s2))
 
 
 def test_pop():
 
+    value_list = []
+    for _ in range(1000):
+        value = random.randint(1, 100)
+        if value not in value_list:
+            value_list.append(value)
+
+    s = OrderedPersistenceSet(value_list)
+    assert list(s) == value_list
+
+    pop_value_list = []
+    while len(s) > 0:
+        pop_s, pop_value = s.pop()
+        pop_value_list.append(pop_value)
+        s = pop_s
+    assert pop_value_list == value_list
+    assert list(s) == []
 
 
-    pass
+def test_pop_from_empty_set():
+
+    s = OrderedPersistenceSet()
+    try:
+        s.pop()
+        assert False
+    except:
+        pass
 
 
 def test_eq():
 
+    s1 = OrderedPersistenceSet([1, 4, 2])
+    s2 = OrderedPersistenceSet([1, 4, 2])
+    assert s1 == s2
 
+    s2 = OrderedPersistenceSet([1, 2, 4])
+    assert s1 != s2
 
+    s2 = {1, 4, 2}
+    assert s1 == s2
 
-    pass
-
-
-def test_repr():
-
-
-
-
-    pass
+    s2 = {1, 4, 3}
+    assert s1 != s2
 
 
 def test_clear():
 
+    s = OrderedPersistenceSet()
+    s1 = s.clear()
 
+    assert id(s) == id(s1)
 
-    pass
+    s = OrderedPersistenceSet([1, 3])
+    s2 = s.clear()
+
+    assert id(s) != id(s2)
 
 
 def test_set_contains_no_dup_data():
 
-
-
-
-    pass
+    s = OrderedPersistenceSet()
+    for _ in range(10000):
+        s.add(random.randint(1, 500))
+    value_list = list(s)
+    value_set = set()
+    for value in value_list:
+        assert value not in value_set
+        value_set.add(value)
 
 
 def test_compared_with_builtin_set():
 
+    def get_linked_list_length(list_node):
+        ans = 0
+        while list_node.next:
+            ans += 1
+            list_node = list_node.next
+        return ans
+
+    ops = ['add', 'pop', 'discard', 'clear']
+    s = OrderedPersistenceSet()
+    value_list = []
+    for _ in range(100000):
+        value = random.randint(1, 200)
+        op = ops[random.randint(0, 3)]
+        if op == 'add':
+            s = s.add(value)
+            if value not in value_list:
+                value_list.append(value)
+        elif op == 'pop':
+            value1, value2 = None, None
+            if len(s) > 0:
+                s, value1 = s.pop()
+            if len(value_list) > 0:
+                value2 = value_list.pop(0)
+            assert value1 == value2
+        elif op == 'discard':
+            value = random.randint(1, 200)
+            s = s.discard(value)
+            if value in value_list:
+                value_list.remove(value)
+        else:
+            s = s.clear()
+            value_list.clear()
+        assert list(s) == value_list
+
+        len1, len2, len3 = len(s), len(s._value_dict), get_linked_list_length(s._head)
+        assert len1 == len2 and len2 == len3
 
 
-    pass
+def test_backend_data_structure_length():
+
+    def get_linked_list_length(list_node):
+        ans = 0
+        while list_node.next:
+            ans += 1
+            list_node = list_node.next
+        return ans
+
+    s = OrderedPersistenceSet()
+    for _ in range(100000):
+        value = random.randint(1, 1000)
+        s = s.add(value)
+        len1, len2, len3 = len(s), len(s._value_dict), get_linked_list_length(s._head)
+        assert len1 == len2 and len2 == len3
+
+
+def test_repr():
+
+    s = OrderedPersistenceSet()
+    assert repr(s) == 'OrderedPersistenceSet()'
+
+    s = OrderedPersistenceSet([1, 10, 4])
+    assert repr(s) == '{1, 10, 4}'

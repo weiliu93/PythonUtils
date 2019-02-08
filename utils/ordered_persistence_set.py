@@ -49,7 +49,7 @@ class OrderedPersistenceSet(Set):
                 list_node.next.prev = new_list_tail
                 new_list_tail = self._tail
             new_value_dict = {}
-            node = new_list_head
+            node = new_list_head.next
             while node:
                 new_value_dict[node.key] = node
                 node = node.next
@@ -67,8 +67,11 @@ class OrderedPersistenceSet(Set):
         return self.discard(key)
 
     def pop(self):
+        """
+        return a tuple, first is result set, second is pop value
+        """
         if len(self) > 0:
-            return self.discard(self._head.next.key)
+            return self.discard(self._head.next.key), self._head.next.key
         else:
             raise KeyError("pop from an empty set")
 
