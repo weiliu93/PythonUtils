@@ -1,5 +1,5 @@
 black-style:
-	black ./utils
+	black ./utils ./tests
 
 test:
 	pytest -v tests/

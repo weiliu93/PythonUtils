@@ -9,7 +9,6 @@ sys.path.append(
 from ordered_persistence_set import OrderedPersistenceSet
 
 
-
 def test_add_element():
 
     s = OrderedPersistenceSet()
@@ -207,7 +206,6 @@ def test_set_contains_no_dup_data():
 
 
 def test_compared_with_builtin_set():
-
     def get_linked_list_length(list_node):
         ans = 0
         while list_node.next:
@@ -215,24 +213,24 @@ def test_compared_with_builtin_set():
             list_node = list_node.next
         return ans
 
-    ops = ['add', 'pop', 'discard', 'clear']
+    ops = ["add", "pop", "discard", "clear"]
     s = OrderedPersistenceSet()
     value_list = []
     for _ in range(100000):
         value = random.randint(1, 200)
         op = ops[random.randint(0, 3)]
-        if op == 'add':
+        if op == "add":
             s = s.add(value)
             if value not in value_list:
                 value_list.append(value)
-        elif op == 'pop':
+        elif op == "pop":
             value1, value2 = None, None
             if len(s) > 0:
                 s, value1 = s.pop()
             if len(value_list) > 0:
                 value2 = value_list.pop(0)
             assert value1 == value2
-        elif op == 'discard':
+        elif op == "discard":
             value = random.randint(1, 200)
             s = s.discard(value)
             if value in value_list:
@@ -247,7 +245,6 @@ def test_compared_with_builtin_set():
 
 
 def test_backend_data_structure_length():
-
     def get_linked_list_length(list_node):
         ans = 0
         while list_node.next:
@@ -266,7 +263,7 @@ def test_backend_data_structure_length():
 def test_repr():
 
     s = OrderedPersistenceSet()
-    assert repr(s) == 'OrderedPersistenceSet()'
+    assert repr(s) == "OrderedPersistenceSet()"
 
     s = OrderedPersistenceSet([1, 10, 4])
-    assert repr(s) == '{1, 10, 4}'
+    assert repr(s) == "{1, 10, 4}"

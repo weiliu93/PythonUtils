@@ -131,23 +131,23 @@ def test_compared_with_ordereddict():
     d = OrderedDict()
     s = OrderedSet()
 
-    ops = ['add', 'discard', 'clear', 'pop']
+    ops = ["add", "discard", "clear", "pop"]
     for i in range(100000):
         op_index = random.randint(0, 3)
         op = ops[op_index]
 
-        if op == 'add':
-            value = random.randint(- 1000000000, 1000000000)
+        if op == "add":
+            value = random.randint(-1000000000, 1000000000)
             s.add(value)
             d[value] = value
-        elif op == 'discard':
-            value = random.randint(- 1000000000, 1000000000)
+        elif op == "discard":
+            value = random.randint(-1000000000, 1000000000)
             s.discard(value)
             d.pop(value, None)
-        elif op == 'clear':
+        elif op == "clear":
             d.clear()
             s.clear()
-        elif op == 'pop':
+        elif op == "pop":
             assert len(s) == len(d)
             if len(s) > 0:
                 # pop is valid
@@ -172,7 +172,7 @@ def test_pop_from_empty_set():
 
 def test_init_set_with_some_data():
 
-    s = OrderedSet([1 , 9 , 7 , 3])
+    s = OrderedSet([1, 9, 7, 3])
     assert len(s) == 4
     assert list(s) == [1, 9, 7, 3]
 
@@ -187,7 +187,7 @@ def test_set_has_no_duplicate_data():
 
     s = OrderedSet()
     for i in range(1000000):
-        s.add(random.randint(- 1000000000, 1000000000))
+        s.add(random.randint(-1000000000, 1000000000))
     vis = set()
     while s:
         value = s.pop()
@@ -200,19 +200,19 @@ def test_contains():
     vis = set()
     s = OrderedSet()
 
-    ops = ['add', 'contains', 'discard']
+    ops = ["add", "contains", "discard"]
     for i in range(1000):
         op_index = random.randint(0, 2)
         op = ops[op_index]
-        if op == 'add':
-            value = random.randint(- 1000000, 1000000)
+        if op == "add":
+            value = random.randint(-1000000, 1000000)
             vis.add(value)
             s.add(value)
-        elif op == 'contains':
-            value = random.randint(- 1000000, 1000000)
+        elif op == "contains":
+            value = random.randint(-1000000, 1000000)
             assert (value in vis) == (value in s)
         else:
-            value = random.randint(- 1000000, 1000000)
+            value = random.randint(-1000000, 1000000)
             s.discard(value)
             vis.discard(value)
         assert sorted(list(vis)) == sorted(list(s))
@@ -223,16 +223,16 @@ def test_discard():
     vis = set()
     s = OrderedSet()
 
-    ops = ['add', 'discard']
+    ops = ["add", "discard"]
     for i in range(1000):
         op_index = random.randint(0, 1)
         op = ops[op_index]
-        if op == 'add':
-            value = random.randint(- 1000, 1000)
+        if op == "add":
+            value = random.randint(-1000, 1000)
             vis.add(value)
             s.add(value)
         else:
-            value = random.randint(- 1000, 1000)
+            value = random.randint(-1000, 1000)
             s.discard(value)
             vis.discard(value)
         assert sorted(list(vis)) == sorted(list(s))
@@ -271,19 +271,19 @@ def test_equal():
 def test_str():
 
     s = OrderedSet([1, 5, 3])
-    assert str(s) == '{1, 5, 3}'
+    assert str(s) == "{1, 5, 3}"
 
     s = OrderedSet()
-    assert str(s) == 'OrderedSet()'
+    assert str(s) == "OrderedSet()"
 
 
 def test_repr():
 
     s = OrderedSet([1, 5, 3])
-    assert repr(s) == '{1, 5, 3}'
+    assert repr(s) == "{1, 5, 3}"
 
     s = OrderedSet()
-    assert str(s) == 'OrderedSet()'
+    assert str(s) == "OrderedSet()"
 
 
 def test_chunk_num_double():
@@ -325,7 +325,6 @@ def test_chunk_num_double_then_shrink():
 
 
 def test_list_size_is_valid():
-
     def get_list_size(s):
         node = s._head
         ans = 0
@@ -343,17 +342,20 @@ def test_list_size_is_valid():
         return ans
 
     s = OrderedSet()
-    ops = ['add', 'pop', 'discard']
+    ops = ["add", "pop", "discard"]
     for i in range(1000000):
         op = ops[random.randint(0, 2)]
-        if op == 'add':
+        if op == "add":
             value = random.randint(1, 1000)
             s.add(value)
-        elif op == 'pop':
+        elif op == "pop":
             if len(s) > 0:
                 s.pop()
         else:
             value = random.randint(1, 1000)
             s.discard(value)
         assert len(s) == get_list_size(s)
-        assert get_list_size(s) + get_free_list_size(s) == s._total_chunk * OrderedSet.CHUNK_SIZE
+        assert (
+            get_list_size(s) + get_free_list_size(s)
+            == s._total_chunk * OrderedSet.CHUNK_SIZE
+        )

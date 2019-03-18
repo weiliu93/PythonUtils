@@ -38,16 +38,16 @@ def test_set_rev_iter():
 
 def test_ordered_frozen_set_difference():
 
-    set1 = OrderedFrozenSet([1 , 2 , 3])
-    set2 = OrderedFrozenSet([1 , 10 , 3 , 5])
+    set1 = OrderedFrozenSet([1, 2, 3])
+    set2 = OrderedFrozenSet([1, 10, 3, 5])
     assert set1.difference(set2) == OrderedFrozenSet([2])
     assert set1 - set2 == OrderedFrozenSet([2])
 
 
 def test_ordered_frozen_set_intersection():
 
-    set1 = OrderedFrozenSet([1 , 10 , 4 , 2 , 3])
-    set2 = OrderedFrozenSet([10 , 3 , 2 , 8])
+    set1 = OrderedFrozenSet([1, 10, 4, 2, 3])
+    set2 = OrderedFrozenSet([10, 3, 2, 8])
     # same order in set1
     assert set1.intersection(set2) == OrderedFrozenSet([10, 2, 3])
     assert set1 & set2 == OrderedFrozenSet([10, 2, 3])
@@ -64,7 +64,7 @@ def test_ordered_frozen_set_union():
 
 def test_ordered_frozen_set_symmetric_difference():
 
-    set1 = OrderedFrozenSet([1, 3, 5, 10 , 4])
+    set1 = OrderedFrozenSet([1, 3, 5, 10, 4])
     set2 = OrderedFrozenSet([20, 5, 3, 8])
 
     assert set1.symmetric_difference(set2) == OrderedFrozenSet([1, 10, 4, 20, 8])
@@ -87,7 +87,7 @@ def test_disjoint():
 def test_issubset():
 
     set1 = OrderedFrozenSet([1, 10, 3])
-    set2 = OrderedFrozenSet([1, 10, 3 , 4])
+    set2 = OrderedFrozenSet([1, 10, 3, 4])
     assert set1.issubset(set2)
 
     set1 = OrderedFrozenSet([1, 5])
@@ -97,7 +97,7 @@ def test_issubset():
 
 def test_is_superset():
 
-    set1 = OrderedFrozenSet([1, 10 , 4])
+    set1 = OrderedFrozenSet([1, 10, 4])
     set2 = OrderedFrozenSet([10, 1])
     assert set1.issuperset(set2)
 
@@ -166,7 +166,7 @@ def test_hash():
 def test_immutable():
 
     s = OrderedFrozenSet()
-    update_ops = ['add', 'update', 'extend', 'append', 'pop']
+    update_ops = ["add", "update", "extend", "append", "pop"]
     for op in update_ops:
         assert hasattr(s, op) == False
 
