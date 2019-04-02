@@ -1,19 +1,20 @@
 from collections import MutableMapping
-import pickle
 import os
 import shutil
 
-from pympler import asizeof
 import mmh3
 
 from doubly_linkedlist import DoublyLinkedList
+from bucket_memory_doubly_linkedlist import BucketMemoryDoublyLinkedList
 from bucket import Bucket, BucketObject
 
 
 class DiskBasedHashMap(MutableMapping):
     """Disk Based Hash Map, spill data to disk when exceeding memory threshold"""
 
-    def __init__(self, work_dir=None, bucket_num=None, memory_threshold=None):
+    def __init__(
+        self, work_dir=None, bucket_num=None, memory_threshold=None, auto_balance=True
+    ):
         if not work_dir:
             work_dir = os.path.join(os.curdir, "buckets")
         if os.path.exists(work_dir):
@@ -22,19 +23,22 @@ class DiskBasedHashMap(MutableMapping):
         # all buckets stored here
         self._work_dir = work_dir
         # data spilling threshold, default is 1G
-        self._memory_threshold = memory_threshold or 1024 * 1024
+        self._memory_threshold = memory_threshold or 64
         # total number of bucket, it should always be power of two
-        self._bucket_num = self._power_of_two_ceiling(bucket_num) or 256
+        self._bucket_num = self._power_of_two_ceiling(bucket_num) or 1
         # buckets
         self._buckets = [
-            Bucket(os.path.join(work_dir, "bucket_{}".format(index)))
+            Bucket(os.path.join(work_dir, "bucket_{}.txt".format(index)))
             for index in range(self._bucket_num)
         ]
-        # in-memory object linked list and disk object linked list, value is BucketObject
-        self._in_memory_objects = DoublyLinkedList()
+        # bucket memory doubly linked list for BucketObject
+        self._in_memory_objects = BucketMemoryDoublyLinkedList()
+        # all disk objects' memory usage are same
         self._disk_objects = DoublyLinkedList()
         # object -> in_memory list_node or disk list_node
         self._object_to_list_node = {}
+        # balance switch
+        self._auto_balance = auto_balance
 
     def __getitem__(self, item):
         """raise KeyError"""
@@ -46,15 +50,18 @@ class DiskBasedHashMap(MutableMapping):
             if bucket_object_key.load_value() == item:
                 # move current linked list node to header
                 bucket.linked_list.remove_and_add_first(node)
-                key_list_node, value_list_node = \
-                    self._object_to_list_node[bucket_object_key], self._object_to_list_node[bucket_object_value]
+                key_list_node, value_list_node = (
+                    self._object_to_list_node[bucket_object_key],
+                    self._object_to_list_node[bucket_object_value],
+                )
                 # update in-memory and disk linked list
                 self._in_memory_objects.remove_and_append(key_list_node)
                 self._in_memory_objects.remove_and_append(value_list_node)
                 self._disk_objects.remove_and_append(key_list_node)
                 self._disk_objects.remove_and_append(value_list_node)
-                # balance memory usage
-                self._balance()
+                # balance memory usage when necessary
+                if self._auto_balance:
+                    self.balance()
                 return bucket_object_value.load_value()
         raise KeyError("Key `{}` is not exists".format(item))
 
@@ -67,8 +74,10 @@ class DiskBasedHashMap(MutableMapping):
             assert isinstance(bucket_object_value, BucketObject)
             if bucket_object_key.load_value() == key:
                 bucket.linked_list.remove_and_add_first(node)
-                key_list_node, value_list_node = \
-                    self._object_to_list_node[bucket_object_key], self._object_to_list_node[bucket_object_value]
+                key_list_node, value_list_node = (
+                    self._object_to_list_node[bucket_object_key],
+                    self._object_to_list_node[bucket_object_value],
+                )
                 # update key_list_node and remove value_list_node
                 self._in_memory_objects.remove_and_append(key_list_node)
                 self._disk_objects.remove_and_append(key_list_node)
@@ -77,10 +86,15 @@ class DiskBasedHashMap(MutableMapping):
                 self._object_to_list_node.pop(bucket_object_value)
                 # append value list node to in-memory linked list
                 bucket_object_value.value = value
-                self._object_to_list_node[bucket_object_value] = DoublyLinkedList.create_new_node(bucket_object_value)
-                self._in_memory_objects.append(self._object_to_list_node[bucket_object_value])
+                self._object_to_list_node[
+                    bucket_object_value
+                ] = DoublyLinkedList.create_new_node(bucket_object_value)
+                self._in_memory_objects.append(
+                    self._object_to_list_node[bucket_object_value]
+                )
                 # balance memory usage
-                self._balance()
+                if self._auto_balance:
+                    self.balance()
                 return
         # append key-value pair to current bucket
         bucket_object_key, bucket_object_value = (
@@ -99,7 +113,8 @@ class DiskBasedHashMap(MutableMapping):
         self._object_to_list_node[bucket_object_key] = key_list_node
         self._object_to_list_node[bucket_object_value] = value_list_node
         # balance memory usage
-        self._balance()
+        if self._auto_balance:
+            self.balance()
 
     def __delitem__(self, key):
         """raise KeyError"""
@@ -122,6 +137,8 @@ class DiskBasedHashMap(MutableMapping):
             self._disk_objects.remove(value_list_node)
             # remove node from bucket linked list
             assert bucket.linked_list.remove(node) == True
+            if self._auto_balance:
+                self.balance()
         else:
             raise KeyError("Key `{}` is not exists".format(key))
 
@@ -149,27 +166,92 @@ class DiskBasedHashMap(MutableMapping):
             bucket.clear()
 
     def compact(self):
-        """compact bucket files"""
-        # TODO compact all bucket files, remove redundant storage
+        # create a collection list for each bucket
+        bucket_to_list_node_dict = {}
+        # we need to ensure all buckets should have a collection list
+        for bucket in self._buckets:
+            bucket_to_list_node_dict[bucket] = []
+        for node in self._disk_objects:
+            bucket_object = node.value
+            assert not bucket_object.is_in_memory()
+            bucket_to_list_node_dict[bucket_object.bucket].append(node)
+        # sort all disk objects in address asc order
+        for node_list in bucket_to_list_node_dict.values():
+            node_list.sort(key=lambda node: node.value.address)
+        for bucket, node_list in bucket_to_list_node_dict.items():
+            with open(bucket.filepath, "rb") as source_file:
+                tmp_filepath = bucket.filepath + ".tmp"
+                tmp_offset, tmp_addresses = 0, []
+                with open(tmp_filepath, "wb") as target_file:
+                    # copy bytes from filepath to tmp_filepath
+                    for node in node_list:
+                        bucket_object = node.value
+                        source_file.seek(bucket_object.value.address)
+                        header = source_file.read(4)
+                        data_length = self._byte_array_to_integer(header)
+                        data = source_file.read(data_length)
+                        target_file.write(header + data)
+                        tmp_addresses.append(tmp_offset)
+                        tmp_offset += len(header + data)
+                # swap files in physical disk
+                os.rename(tmp_filepath, bucket.filepath)
+                # remove all bucket_object from object_to_list_node dict
+                for node in node_list:
+                    self._object_to_list_node.pop(node.value)
+                # update disk address and object_to_list_node dict
+                for node, address in zip(node_list, tmp_addresses):
+                    node.value.address = address
+                    self._object_to_list_node[node.value] = node
+                # update bucket's offset, very important
+                bucket._offset = tmp_offset
 
-
-        pass
+    def balance(self):
+        """maintain a sliding windows, ensure memory usage is under threshold"""
+        # first try to load disk object to memory
+        while (
+            self._in_memory_objects.memory_usage < self._memory_threshold
+            and len(self._disk_objects) > 0
+        ):
+            node = self._disk_objects.pop_last()
+            bucket_object = node.value
+            # remove object from inverted dict
+            self._object_to_list_node.pop(bucket_object)
+            # load object from memory
+            bucket_object.value = bucket_object.load_value()
+            self._object_to_list_node[bucket_object] = node
+            self._in_memory_objects.add_first(node)
+        # then persist extra objects to disk based on LRU rule
+        while self._in_memory_objects.memory_usage > self._memory_threshold:
+            node = self._in_memory_objects.pop_first()
+            bucket_object = node.value
+            # remove object from inverted dict
+            self._object_to_list_node.pop(bucket_object)
+            # persist object to disk, update bucket_object's value
+            disk_value = bucket_object.bucket.persist_value(bucket_object.value)
+            bucket_object.value = disk_value
+            self._object_to_list_node[bucket_object] = node
+            self._disk_objects.append(node)
 
     def _power_of_two_ceiling(self, number):
+        number = number or 1
         ans = 1
         while ans < number:
             ans <<= 1
+        return ans
+
+    def _byte_array_to_integer(self, byte_array):
+        ans = 0
+        for b in byte_array:
+            ans = (ans << 4) + int(b)
         return ans
 
     def _index(self, obj):
         """since bucket_num is power of two, bit operation could benefit us here"""
         return mmh3.hash(str(obj)) & (self._bucket_num - 1)
 
-    def _balance(self):
-        # TODO silver bullet
 
+d = DiskBasedHashMap(auto_balance=False)
+for i in range(10):
+    d[i + 1] = i + 1
 
-
-        pass
-
-
+print(d)

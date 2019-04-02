@@ -56,6 +56,7 @@ class BucketObject(object):
 
     def load_value(self):
         if isinstance(self.value, DiskAddress):
+            # TODO it is time costly in most cases, need to find a way to optimize it
             with open(self.bucket.filepath, "rb") as f:
                 f.seek(self.value.address)
                 data_length = self._byte_array_to_integer(f.read(4))
