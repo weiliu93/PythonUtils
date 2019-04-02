@@ -12,9 +12,7 @@ from bucket import Bucket, BucketObject
 class DiskBasedHashMap(MutableMapping):
     """Disk Based Hash Map, spill data to disk when exceeding memory threshold"""
 
-    def __init__(
-        self, work_dir=None, bucket_num=None, memory_threshold=None, auto_balance=True
-    ):
+    def __init__(self, work_dir=None, bucket_num=None, memory_threshold=None):
         if not work_dir:
             work_dir = os.path.join(os.curdir, "buckets")
         if os.path.exists(work_dir):
@@ -23,9 +21,9 @@ class DiskBasedHashMap(MutableMapping):
         # all buckets stored here
         self._work_dir = work_dir
         # data spilling threshold, default is 1G
-        self._memory_threshold = memory_threshold or 64
+        self._memory_threshold = memory_threshold or 1024 * 1024
         # total number of bucket, it should always be power of two
-        self._bucket_num = self._power_of_two_ceiling(bucket_num) or 1
+        self._bucket_num = self._power_of_two_ceiling(bucket_num) or 4
         # buckets
         self._buckets = [
             Bucket(os.path.join(work_dir, "bucket_{}.txt".format(index)))
@@ -37,8 +35,6 @@ class DiskBasedHashMap(MutableMapping):
         self._disk_objects = DoublyLinkedList()
         # object -> in_memory list_node or disk list_node
         self._object_to_list_node = {}
-        # balance switch
-        self._auto_balance = auto_balance
 
     def __getitem__(self, item):
         """raise KeyError"""
@@ -59,9 +55,8 @@ class DiskBasedHashMap(MutableMapping):
                 self._in_memory_objects.remove_and_append(value_list_node)
                 self._disk_objects.remove_and_append(key_list_node)
                 self._disk_objects.remove_and_append(value_list_node)
-                # balance memory usage when necessary
-                if self._auto_balance:
-                    self.balance()
+                # balance memory usage
+                self.balance()
                 return bucket_object_value.load_value()
         raise KeyError("Key `{}` is not exists".format(item))
 
@@ -93,8 +88,7 @@ class DiskBasedHashMap(MutableMapping):
                     self._object_to_list_node[bucket_object_value]
                 )
                 # balance memory usage
-                if self._auto_balance:
-                    self.balance()
+                self.balance()
                 return
         # append key-value pair to current bucket
         bucket_object_key, bucket_object_value = (
@@ -113,8 +107,7 @@ class DiskBasedHashMap(MutableMapping):
         self._object_to_list_node[bucket_object_key] = key_list_node
         self._object_to_list_node[bucket_object_value] = value_list_node
         # balance memory usage
-        if self._auto_balance:
-            self.balance()
+        self.balance()
 
     def __delitem__(self, key):
         """raise KeyError"""
@@ -137,8 +130,7 @@ class DiskBasedHashMap(MutableMapping):
             self._disk_objects.remove(value_list_node)
             # remove node from bucket linked list
             assert bucket.linked_list.remove(node) == True
-            if self._auto_balance:
-                self.balance()
+            self.balance()
         else:
             raise KeyError("Key `{}` is not exists".format(key))
 
@@ -209,7 +201,7 @@ class DiskBasedHashMap(MutableMapping):
         """maintain a sliding windows, ensure memory usage is under threshold"""
         # first try to load disk object to memory
         while (
-            self._in_memory_objects.memory_usage < self._memory_threshold
+            self._in_memory_objects.memory_usage <= self._memory_threshold
             and len(self._disk_objects) > 0
         ):
             node = self._disk_objects.pop_last()
@@ -248,10 +240,3 @@ class DiskBasedHashMap(MutableMapping):
     def _index(self, obj):
         """since bucket_num is power of two, bit operation could benefit us here"""
         return mmh3.hash(str(obj)) & (self._bucket_num - 1)
-
-
-d = DiskBasedHashMap(auto_balance=False)
-for i in range(10):
-    d[i + 1] = i + 1
-
-print(d)
