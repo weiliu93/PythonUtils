@@ -276,6 +276,31 @@ def test_compact():
     _clean_up(test_case_package)
 
 
+def test_bucket_offset_before_and_after_compact():
+    test_case_package = os.path.join(
+        package_root, inspect.currentframe().f_code.co_name
+    )
+    _clean_up(test_case_package)
+
+    disk_map = DiskBasedHashMap(bucket_num = 1, memory_threshold = 0, work_dir = test_case_package)
+    for i in range(10):
+        disk_map[i] = i
+    original_offset = disk_map._buckets[0]._offset
+
+    for i in range(1, 10, 1):
+        del disk_map[i]
+    disk_map.compact()
+    current_offset = disk_map._buckets[0]._offset
+
+    assert current_offset < original_offset
+
+    del disk_map[0]
+    disk_map.compact()
+    assert disk_map._buckets[0]._offset == 0
+
+    _clean_up(test_case_package)
+
+
 def test_memory_usage_never_exceeding_threshold():
     test_case_package = os.path.join(
         package_root, inspect.currentframe().f_code.co_name
