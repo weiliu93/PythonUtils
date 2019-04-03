@@ -12,21 +12,28 @@ from bucket import Bucket, BucketObject
 class DiskBasedHashMap(MutableMapping):
     """Disk Based Hash Map, spill data to disk when exceeding memory threshold"""
 
-    def __init__(self, work_dir=None, bucket_num=None, memory_threshold=None):
+    def __init__(self, work_dir=None, bucket_num=4, memory_threshold=1024 * 1024):
         if not work_dir:
             work_dir = os.path.join(os.curdir, "buckets")
+        # force cleanup
         if os.path.exists(work_dir):
             shutil.rmtree(work_dir)
         os.mkdir(work_dir)
         # all buckets stored here
         self._work_dir = work_dir
         # data spilling threshold, default is 1G
-        self._memory_threshold = memory_threshold or 1024 * 1024
+        self._memory_threshold = (
+            1024 * 1024 if memory_threshold is None else max(memory_threshold, 0)
+        )
         # total number of bucket, it should always be power of two
-        self._bucket_num = self._power_of_two_ceiling(bucket_num) or 4
+        self._bucket_num = self._power_of_two_ceiling(
+            4 if bucket_num is None else max(bucket_num, 1)
+        )
         # buckets
         self._buckets = [
-            Bucket(os.path.join(work_dir, "bucket_{}.txt".format(index)))
+            Bucket(
+                os.path.abspath(os.path.join(work_dir, "bucket_{}.txt".format(index)))
+            )
             for index in range(self._bucket_num)
         ]
         # bucket memory doubly linked list for BucketObject
@@ -44,8 +51,6 @@ class DiskBasedHashMap(MutableMapping):
             assert isinstance(bucket_object_key, BucketObject)
             assert isinstance(bucket_object_value, BucketObject)
             if bucket_object_key.load_value() == item:
-                # move current linked list node to header
-                bucket.linked_list.remove_and_add_first(node)
                 key_list_node, value_list_node = (
                     self._object_to_list_node[bucket_object_key],
                     self._object_to_list_node[bucket_object_value],
@@ -56,7 +61,7 @@ class DiskBasedHashMap(MutableMapping):
                 self._disk_objects.remove_and_append(key_list_node)
                 self._disk_objects.remove_and_append(value_list_node)
                 # balance memory usage
-                self.balance()
+                self._balance()
                 return bucket_object_value.load_value()
         raise KeyError("Key `{}` is not exists".format(item))
 
@@ -68,7 +73,6 @@ class DiskBasedHashMap(MutableMapping):
             assert isinstance(bucket_object_key, BucketObject)
             assert isinstance(bucket_object_value, BucketObject)
             if bucket_object_key.load_value() == key:
-                bucket.linked_list.remove_and_add_first(node)
                 key_list_node, value_list_node = (
                     self._object_to_list_node[bucket_object_key],
                     self._object_to_list_node[bucket_object_value],
@@ -88,7 +92,7 @@ class DiskBasedHashMap(MutableMapping):
                     self._object_to_list_node[bucket_object_value]
                 )
                 # balance memory usage
-                self.balance()
+                self._balance()
                 return
         # append key-value pair to current bucket
         bucket_object_key, bucket_object_value = (
@@ -107,30 +111,26 @@ class DiskBasedHashMap(MutableMapping):
         self._object_to_list_node[bucket_object_key] = key_list_node
         self._object_to_list_node[bucket_object_value] = value_list_node
         # balance memory usage
-        self.balance()
+        self._balance()
 
     def __delitem__(self, key):
         """raise KeyError"""
         bucket = self._buckets[self._index(key)]
-        node = None
         for node in bucket.linked_list:
             bucket_object_key, bucket_object_value = node.value
             if bucket_object_key.load_value() == key:
-                break
-        # key is exists
-        if node:
-            bucket_object_key, bucket_object_value = node.value
-            # remove objects from object -> list_node dict
-            key_list_node = self._object_to_list_node.pop(bucket_object_key)
-            value_list_node = self._object_to_list_node.pop(bucket_object_value)
-            # remove list_node from in_memory and disk objects
-            self._in_memory_objects.remove(key_list_node)
-            self._in_memory_objects.remove(value_list_node)
-            self._disk_objects.remove(key_list_node)
-            self._disk_objects.remove(value_list_node)
-            # remove node from bucket linked list
-            assert bucket.linked_list.remove(node) == True
-            self.balance()
+                # remove objects from object -> list_node dict
+                key_list_node = self._object_to_list_node.pop(bucket_object_key)
+                value_list_node = self._object_to_list_node.pop(bucket_object_value)
+                # remove list_node from in_memory and disk objects
+                self._in_memory_objects.remove(key_list_node)
+                self._in_memory_objects.remove(value_list_node)
+                self._disk_objects.remove(key_list_node)
+                self._disk_objects.remove(value_list_node)
+                # remove node from bucket linked list
+                assert bucket.linked_list.remove(node) == True
+                self._balance()
+                return
         else:
             raise KeyError("Key `{}` is not exists".format(key))
 
@@ -158,6 +158,8 @@ class DiskBasedHashMap(MutableMapping):
             bucket.clear()
 
     def compact(self):
+        """compact all disk buckets, save disk space and speed up disk data lookup"""
+
         # create a collection list for each bucket
         bucket_to_list_node_dict = {}
         # we need to ensure all buckets should have a collection list
@@ -167,9 +169,7 @@ class DiskBasedHashMap(MutableMapping):
             bucket_object = node.value
             assert not bucket_object.is_in_memory()
             bucket_to_list_node_dict[bucket_object.bucket].append(node)
-        # sort all disk objects in address asc order
-        for node_list in bucket_to_list_node_dict.values():
-            node_list.sort(key=lambda node: node.value.address)
+        # bucket by bucket processing
         for bucket, node_list in bucket_to_list_node_dict.items():
             with open(bucket.filepath, "rb") as source_file:
                 tmp_filepath = bucket.filepath + ".tmp"
@@ -192,16 +192,18 @@ class DiskBasedHashMap(MutableMapping):
                     self._object_to_list_node.pop(node.value)
                 # update disk address and object_to_list_node dict
                 for node, address in zip(node_list, tmp_addresses):
-                    node.value.address = address
-                    self._object_to_list_node[node.value] = node
-                # update bucket's offset, very important
+                    bucket_object = node.value
+                    bucket_object.value.address = address
+                    self._object_to_list_node[bucket_object] = node
+                # update bucket's offset, very important in compaction
                 bucket._offset = tmp_offset
 
-    def balance(self):
+    def _balance(self):
         """maintain a sliding windows, ensure memory usage is under threshold"""
+
         # first try to load disk object to memory
         while (
-            self._in_memory_objects.memory_usage <= self._memory_threshold
+            self._in_memory_objects.memory_usage < self._memory_threshold
             and len(self._disk_objects) > 0
         ):
             node = self._disk_objects.pop_last()
@@ -225,7 +227,6 @@ class DiskBasedHashMap(MutableMapping):
             self._disk_objects.append(node)
 
     def _power_of_two_ceiling(self, number):
-        number = number or 1
         ans = 1
         while ans < number:
             ans <<= 1

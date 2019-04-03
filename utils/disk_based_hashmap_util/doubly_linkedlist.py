@@ -15,7 +15,7 @@ class DoublyLinkedList(object):
             self.value = value
 
         def __str__(self):
-            return str(self.value)
+            return "(value: {})".format(str(self.value))
 
     def __init__(self):
         self._head = self.LinkedListNode(None)
