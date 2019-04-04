@@ -4,6 +4,7 @@ import inspect
 import shutil
 import random
 
+from pympler.asizeof import asizeof
 
 sys.path.append(
     os.path.join(
@@ -282,7 +283,9 @@ def test_bucket_offset_before_and_after_compact():
     )
     _clean_up(test_case_package)
 
-    disk_map = DiskBasedHashMap(bucket_num = 1, memory_threshold = 0, work_dir = test_case_package)
+    disk_map = DiskBasedHashMap(
+        bucket_num=1, memory_threshold=0, work_dir=test_case_package
+    )
     for i in range(10):
         disk_map[i] = i
     original_offset = disk_map._buckets[0]._offset
@@ -309,7 +312,9 @@ def test_memory_usage_never_exceeding_threshold():
 
     memory_threshold = 1024
     keys = set()
-    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = memory_threshold, work_dir = test_case_package)
+    disk_map = DiskBasedHashMap(
+        bucket_num=4, memory_threshold=memory_threshold, work_dir=test_case_package
+    )
     for _ in range(10000):
         key, value = random.randint(1, 100), random.randint(1, 100)
         # set
@@ -343,7 +348,9 @@ def test_real_scenario():
     _clean_up(test_case_package)
 
     comp_dict = {}
-    disk_map = DiskBasedHashMap(memory_threshold = 1024, bucket_num = 8, work_dir = test_case_package)
+    disk_map = DiskBasedHashMap(
+        memory_threshold=1024, bucket_num=8, work_dir=test_case_package
+    )
     for _ in range(50000):
         key, value = random.randint(1, 300), random.randint(1, 1000)
         # set, get, del, clear
@@ -375,7 +382,9 @@ def test_real_scenario_with_compaction():
     _clean_up(test_case_package)
 
     comp_dict = {}
-    disk_map = DiskBasedHashMap(memory_threshold=1024, bucket_num=8, work_dir=test_case_package)
+    disk_map = DiskBasedHashMap(
+        memory_threshold=1024, bucket_num=8, work_dir=test_case_package
+    )
     for _ in range(50000):
         key, value = random.randint(1, 300), random.randint(1, 1000)
         # set, get, del, clear, compact
@@ -402,7 +411,133 @@ def test_real_scenario_with_compaction():
     _clean_up(test_case_package)
 
 
+def test_value_is_huge_object():
+    test_case_package = os.path.join(
+        package_root, inspect.currentframe().f_code.co_name
+    )
+    _clean_up(test_case_package)
+
+    comp_dict = {}
+    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = 0, work_dir = test_case_package)
+    for i in range(100):
+        disk_map[i] = list(range(10000))
+        comp_dict[i] = list(range(10000))
+
+    for i in range(100):
+        assert disk_map[i] == list(range(10000))
+
+    # at least 50 times compaction, since all objects stored in disk
+    assert asizeof(disk_map) < asizeof(comp_dict) // 50
+
+    assert disk_map._in_memory_objects.memory_usage == 0
+
+    _clean_up(test_case_package)
+
+
+def test_compact_huge_objects():
+    test_case_package = os.path.join(
+        package_root, inspect.currentframe().f_code.co_name
+    )
+    _clean_up(test_case_package)
+
+    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = 0, work_dir = test_case_package)
+    for i in range(100):
+        disk_map[i] = list(range(10000))
+    for i in range(50):
+        del disk_map[i]
+    disk_map.compact()
+
+    for i in range(100):
+        if i < 50:
+            assert disk_map.get(i, None) == None
+        else:
+            assert disk_map[i] == list(range(10000))
+
+    _clean_up(test_case_package)
+
+
+def test_reset_key_value_pair():
+    test_case_package = os.path.join(
+        package_root, inspect.currentframe().f_code.co_name
+    )
+    _clean_up(test_case_package)
+
+    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = 0, work_dir = test_case_package)
+    disk_map[0] = [0 , 1 , 2]
+
+    assert disk_map[0] == [0, 1, 2]
+    value = disk_map[0]
+    value.append(10)
+
+    assert value == [0, 1, 2, 10]
+    # change won't come into effect here
+    assert disk_map[0] == [0, 1, 2]
+
+    disk_map[0] = value
+    assert disk_map[0] == [0, 1, 2, 10]
+
+    _clean_up(test_case_package)
+
+
+def test_complicated_object_usage():
+    test_case_package = os.path.join(
+        package_root, inspect.currentframe().f_code.co_name
+    )
+    _clean_up(test_case_package)
+
+    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = 128, work_dir = test_case_package)
+
+    disk_map[Point(0, 0)] = Element("haha", 10)
+    disk_map[Point(1, 1)] = Element("hehe", 12)
+    disk_map[Point(2, 2)] = Element("heihei", 234)
+
+    e = disk_map[Point(1, 1)]
+    assert e.name == "hehe" and e.cnt == 12
+
+    e.cnt += 20
+    disk_map[Point(1, 1)] = e
+    assert disk_map[Point(1, 1)].cnt == 32
+    assert disk_map[Point(1, 1)].name == "hehe"
+
+    e = disk_map[Point(0, 0)]
+    e.name = "what"
+    disk_map[Point(0, 0)] = e
+
+    assert disk_map[Point(0, 0)].name == "what"
+    assert disk_map[Point(0, 0)].cnt == 10
+
+    # check memory usage
+    assert disk_map._in_memory_objects.memory_usage <= 128
+
+    _clean_up(test_case_package)
+
+
 def _clean_up(test_case_package):
     if os.path.exists(test_case_package):
         shutil.rmtree(test_case_package)
     os.mkdir(test_case_package)
+
+
+########### Classes for testing ###########
+
+class Point(object):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def __eq__(self, other):
+        if isinstance(other, Point):
+            return self.x == other.x and self.y == other.y
+        else:
+            return False
+
+    def __hash__(self):
+        return self.x * 31 + self.y
+
+class Element(object):
+    def __init__(self, name, cnt):
+        self.name = name
+        self.cnt = cnt
+
+    def __hash__(self):
+        return hash(self.name) * 31 + self.cnt

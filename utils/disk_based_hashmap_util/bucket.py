@@ -30,7 +30,7 @@ class Bucket(object):
             pickle_value = pickle.dumps(value)
             # final byte array need to be flushed
             byte_array = self._integer_to_byte_array(len(pickle_value)) + pickle_value
-            f.write(byte_array)
+            assert f.write(byte_array) == len(byte_array)
             address = self._offset
             self._offset += len(byte_array)
             return DiskAddress(address)
@@ -56,11 +56,11 @@ class BucketObject(object):
 
     def load_value(self):
         if isinstance(self.value, DiskAddress):
-            # TODO it is time costly in most cases, need to find a way to optimize it
             with open(self.bucket.filepath, "rb") as f:
                 f.seek(self.value.address)
                 data_length = self._byte_array_to_integer(f.read(4))
                 value_byte_array = f.read(data_length)
+                assert len(value_byte_array) == data_length
                 return pickle.loads(value_byte_array)
         else:
             return self.value
@@ -68,7 +68,7 @@ class BucketObject(object):
     def _byte_array_to_integer(self, byte_array):
         ans = 0
         for b in byte_array:
-            ans = (ans << 4) + int(b)
+            ans = (ans << 8) + int(b)
         return ans
 
     def is_in_memory(self):

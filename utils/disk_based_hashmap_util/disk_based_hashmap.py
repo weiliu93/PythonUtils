@@ -2,17 +2,15 @@ from collections import MutableMapping
 import os
 import shutil
 
-import mmh3
-
 from doubly_linkedlist import DoublyLinkedList
 from bucket_memory_doubly_linkedlist import BucketMemoryDoublyLinkedList
 from bucket import Bucket, BucketObject
 
 
 class DiskBasedHashMap(MutableMapping):
-    """Disk Based Hash Map, spill data to disk when exceeding memory threshold"""
+    """Disk Based Hash Map, spill data to disk when exceeding memory threshold. Non thread safe implementation"""
 
-    def __init__(self, work_dir=None, bucket_num=4, memory_threshold=1024 * 1024):
+    def __init__(self, work_dir=None, bucket_num=4, memory_threshold= 64 * 1024):
         if not work_dir:
             work_dir = os.path.join(os.curdir, "buckets")
         # force cleanup
@@ -21,9 +19,9 @@ class DiskBasedHashMap(MutableMapping):
         os.mkdir(work_dir)
         # all buckets stored here
         self._work_dir = work_dir
-        # data spilling threshold, default is 1G
+        # data spilling threshold, default is 64M. `0` means it works in absolutely disk mode
         self._memory_threshold = (
-            1024 * 1024 if memory_threshold is None else max(memory_threshold, 0)
+            64 * 1024 if memory_threshold is None else max(memory_threshold, 0)
         )
         # total number of bucket, it should always be power of two
         self._bucket_num = self._power_of_two_ceiling(
@@ -44,7 +42,11 @@ class DiskBasedHashMap(MutableMapping):
         self._object_to_list_node = {}
 
     def __getitem__(self, item):
-        """raise KeyError"""
+        """Get corresponding value for given key, one thing need to be mentioned here is
+           value's update outside of this dict may not come into effect inside this dict
+           since that value could be a disk object, you need to use `set` to guarantee your
+           update is persisted
+        """
         bucket = self._buckets[self._index(item)]
         for node in bucket.linked_list:
             bucket_object_key, bucket_object_value = node.value
@@ -66,6 +68,7 @@ class DiskBasedHashMap(MutableMapping):
         raise KeyError("Key `{}` is not exists".format(item))
 
     def __setitem__(self, key, value):
+        """Update key-value pair if key existing, otherwise add a new key-value pair"""
         bucket = self._buckets[self._index(key)]
         for node in bucket.linked_list:
             # key, value pair stored in bucket linked list
@@ -114,7 +117,7 @@ class DiskBasedHashMap(MutableMapping):
         self._balance()
 
     def __delitem__(self, key):
-        """raise KeyError"""
+        """Del key-value pair from dict"""
         bucket = self._buckets[self._index(key)]
         for node in bucket.linked_list:
             bucket_object_key, bucket_object_value = node.value
@@ -131,11 +134,10 @@ class DiskBasedHashMap(MutableMapping):
                 assert bucket.linked_list.remove(node) == True
                 self._balance()
                 return
-        else:
-            raise KeyError("Key `{}` is not exists".format(key))
+        raise KeyError("Key `{}` is not exists".format(key))
 
     def __iter__(self):
-        """return all keys"""
+        """Return all keys"""
         for bucket in self._buckets:
             for node in bucket.linked_list:
                 bucket_key_object, _ = node.value
@@ -145,12 +147,12 @@ class DiskBasedHashMap(MutableMapping):
         return str(list(self))
 
     def __len__(self):
-        # since we store key-value pair both, it means the total amount of objects is even
+        # Since we store key-value pair both, it means the total amount of objects is even
         assert len(self._object_to_list_node) % 2 == 0
         return len(self._object_to_list_node) // 2
 
     def clear(self):
-        """default implementation is inefficient"""
+        """Default implementation is inefficient"""
         self._in_memory_objects.clear()
         self._disk_objects.clear()
         self._object_to_list_node.clear()
@@ -158,7 +160,7 @@ class DiskBasedHashMap(MutableMapping):
             bucket.clear()
 
     def compact(self):
-        """compact all disk buckets, save disk space and speed up disk data lookup"""
+        """Compact all disk buckets, save disk space and speed up disk data lookup"""
 
         # create a collection list for each bucket
         bucket_to_list_node_dict = {}
@@ -199,7 +201,7 @@ class DiskBasedHashMap(MutableMapping):
                 bucket._offset = tmp_offset
 
     def _balance(self):
-        """maintain a sliding windows, ensure memory usage is under threshold"""
+        """Maintain a sliding windows, ensure memory usage is under threshold"""
 
         # first try to load disk object to memory
         while (
@@ -235,9 +237,9 @@ class DiskBasedHashMap(MutableMapping):
     def _byte_array_to_integer(self, byte_array):
         ans = 0
         for b in byte_array:
-            ans = (ans << 4) + int(b)
+            ans = (ans << 8) + int(b)
         return ans
 
     def _index(self, obj):
         """since bucket_num is power of two, bit operation could benefit us here"""
-        return mmh3.hash(str(obj)) & (self._bucket_num - 1)
+        return hash(obj) & (self._bucket_num - 1)
