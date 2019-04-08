@@ -157,6 +157,21 @@ def test_add_too_much_data_to_cuckoo_filter():
         assert not filter.add(i)
 
 
+def test_add_hybrid_data_to_cuckoo_filter():
+    filter = CuckooFilter(bucket_size = 4, array_size = 16, substitution_limit = 10)
+
+    filter.add(10)
+    filter.add(100)
+    filter.add("abcd")
+    filter.add(12.24)
+    filter.add((1, 100))
+    filter.add(Point(10, 100))
+
+    assert 10 in filter and 100 in filter and \
+           "abcd" in filter and 12.24 in filter and \
+           (1, 100) in filter and Point(10, 100) in filter
+    assert len(filter) == 6
+
 # testing class
 class Point(object):
     def __init__(self, x, y):

@@ -94,9 +94,9 @@ class CuckooFilter(object):
         # flag used to represents if insert succeeded
         add_succeeded = True
         if self._substitution(bucket_1):
-            bucket_1.add(fingerprint)
+            assert bucket_1.add(fingerprint) == True
         elif self._substitution(bucket_2):
-            bucket_2.add(fingerprint)
+            assert bucket_2.add(fingerprint) == True
         else:
             # if substitution failed, it means insert failed
             add_succeeded = False
