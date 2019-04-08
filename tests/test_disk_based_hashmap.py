@@ -418,7 +418,9 @@ def test_value_is_huge_object():
     _clean_up(test_case_package)
 
     comp_dict = {}
-    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = 0, work_dir = test_case_package)
+    disk_map = DiskBasedHashMap(
+        bucket_num=4, memory_threshold=0, work_dir=test_case_package
+    )
     for i in range(100):
         disk_map[i] = list(range(10000))
         comp_dict[i] = list(range(10000))
@@ -440,7 +442,9 @@ def test_compact_huge_objects():
     )
     _clean_up(test_case_package)
 
-    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = 0, work_dir = test_case_package)
+    disk_map = DiskBasedHashMap(
+        bucket_num=4, memory_threshold=0, work_dir=test_case_package
+    )
     for i in range(100):
         disk_map[i] = list(range(10000))
     for i in range(50):
@@ -462,8 +466,10 @@ def test_reset_key_value_pair():
     )
     _clean_up(test_case_package)
 
-    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = 0, work_dir = test_case_package)
-    disk_map[0] = [0 , 1 , 2]
+    disk_map = DiskBasedHashMap(
+        bucket_num=4, memory_threshold=0, work_dir=test_case_package
+    )
+    disk_map[0] = [0, 1, 2]
 
     assert disk_map[0] == [0, 1, 2]
     value = disk_map[0]
@@ -485,7 +491,9 @@ def test_complicated_object_usage():
     )
     _clean_up(test_case_package)
 
-    disk_map = DiskBasedHashMap(bucket_num = 4, memory_threshold = 128, work_dir = test_case_package)
+    disk_map = DiskBasedHashMap(
+        bucket_num=4, memory_threshold=128, work_dir=test_case_package
+    )
 
     disk_map[Point(0, 0)] = Element("haha", 10)
     disk_map[Point(1, 1)] = Element("hehe", 12)
@@ -520,6 +528,7 @@ def _clean_up(test_case_package):
 
 ########### Classes for testing ###########
 
+
 class Point(object):
     def __init__(self, x, y):
         self.x = x
@@ -533,6 +542,7 @@ class Point(object):
 
     def __hash__(self):
         return self.x * 31 + self.y
+
 
 class Element(object):
     def __init__(self, name, cnt):

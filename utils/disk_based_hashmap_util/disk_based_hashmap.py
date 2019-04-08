@@ -10,7 +10,7 @@ from bucket import Bucket, BucketObject
 class DiskBasedHashMap(MutableMapping):
     """Disk Based Hash Map, spill data to disk when exceeding memory threshold. Non thread safe implementation"""
 
-    def __init__(self, work_dir=None, bucket_num=4, memory_threshold= 64 * 1024):
+    def __init__(self, work_dir=None, bucket_num=4, memory_threshold=64 * 1024):
         if not work_dir:
             work_dir = os.path.join(os.curdir, "buckets")
         # force cleanup
