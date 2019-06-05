@@ -30,9 +30,6 @@ class IndexPriorityQueue(object):
         for value in self._buffer[1: ]:
             yield value
 
-    def __add__(self, other):
-        self.add(other)
-
     def add(self, value):
         index = len(self._buffer)
         # mapping value and next available index
@@ -45,8 +42,10 @@ class IndexPriorityQueue(object):
         return len(self._buffer) == 1
 
     def update(self, value, new_value):
-        self.remove(value)
-        self.add(new_value)
+        if self.remove(value):
+            self.add(new_value)
+        else:
+            raise Exception("value is not exists")
 
     def pop(self):
         if self.empty():
