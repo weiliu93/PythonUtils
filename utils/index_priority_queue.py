@@ -2,7 +2,6 @@ from collections import defaultdict
 
 
 class IndexPriorityQueue(object):
-
     def __init__(self, init_data=None):
         # None as placeholder
         self._buffer = [None]
@@ -27,7 +26,7 @@ class IndexPriorityQueue(object):
         return len(self._buffer) - 1
 
     def __iter__(self):
-        for value in self._buffer[1: ]:
+        for value in self._buffer[1:]:
             yield value
 
     def add(self, value):
@@ -67,7 +66,10 @@ class IndexPriorityQueue(object):
 
     def remove(self, value):
         # need to check if value exists, and set is not empty
-        if value in self._value_to_index_set_dict and self._value_to_index_set_dict[value]:
+        if (
+            value in self._value_to_index_set_dict
+            and self._value_to_index_set_dict[value]
+        ):
             total = len(self._buffer) - 1
             index = list(self._value_to_index_set_dict[value])[0]
             # swap index with total
@@ -115,7 +117,10 @@ class IndexPriorityQueue(object):
         while index < len(self._buffer):
             # both of the two children exists
             if index * 2 + 1 < len(self._buffer):
-                left_children, right_children = self._buffer[index * 2], self._buffer[index * 2 + 1]
+                left_children, right_children = (
+                    self._buffer[index * 2],
+                    self._buffer[index * 2 + 1],
+                )
                 if left_children < right_children:
                     children = left_children
                     children_index = index * 2
@@ -130,7 +135,7 @@ class IndexPriorityQueue(object):
             elif index * 2 < len(self._buffer):
                 # only one child
                 if self._buffer[index] > self._buffer[index * 2]:
-                    self._swap(index , index * 2)
+                    self._swap(index, index * 2)
                 break
             else:
                 # no children available

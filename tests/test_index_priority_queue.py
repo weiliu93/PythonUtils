@@ -10,9 +10,8 @@ sys.path.append(
 from index_priority_queue import IndexPriorityQueue
 
 
-
 def test_basic_priority_queue_functionalities():
-    queue = IndexPriorityQueue(init_data = [10, 5, 3 , 6 , 100])
+    queue = IndexPriorityQueue(init_data=[10, 5, 3, 6, 100])
     sorted_array = [3, 5, 6, 10, 100]
     while not queue.empty():
         assert queue.pop() == sorted_array.pop(0)
@@ -127,7 +126,7 @@ def test_priority_queue_empty_check():
 
 
 def test_priority_queue_peek_and_pop_return_same_result():
-    queue = IndexPriorityQueue([1, 10, 4 , 5 , 2])
+    queue = IndexPriorityQueue([1, 10, 4, 5, 2])
     while not queue.empty():
         assert queue.peek() == queue.pop()
 
@@ -249,7 +248,7 @@ def test_index_priority_queue_built_on_existing_array():
     array = [random.randint(1, 10000) for _ in range(1000)]
     sorted_array = sorted(array)
 
-    queue = IndexPriorityQueue(init_data = array)
+    queue = IndexPriorityQueue(init_data=array)
     while not queue.empty() and queue.pop() == sorted_array.pop(0):
         pass
 

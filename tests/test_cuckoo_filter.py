@@ -62,7 +62,7 @@ def test_clear():
 
 
 def test_contains():
-    filter = CuckooFilter(array_size = 1 << 16)
+    filter = CuckooFilter(array_size=1 << 16)
     s = set()
     for _ in range(1000):
         value = random.randint(1, 1000)
@@ -75,7 +75,7 @@ def test_contains():
 
 
 def test_len():
-    filter = CuckooFilter(array_size = 1 << 16)
+    filter = CuckooFilter(array_size=1 << 16)
     s = set()
     for _ in range(6000):
         value = random.randint(1, 100)
@@ -85,7 +85,7 @@ def test_len():
 
 
 def test_total_number_of_elements_never_exceeding_threshold():
-    filter = CuckooFilter(bucket_size = 4, array_size = 1 << 4)
+    filter = CuckooFilter(bucket_size=4, array_size=1 << 4)
     # in order to guarantee almost all buckets are occupied
     for _ in range(20000):
         filter.add(random.randint(1, 10000))
@@ -93,8 +93,8 @@ def test_total_number_of_elements_never_exceeding_threshold():
 
 
 def test_real_scenario():
-    filter = CuckooFilter(bucket_size = 4, array_size = 1 << 8, substitution_limit=100)
-    s , cnt = set(), 0
+    filter = CuckooFilter(bucket_size=4, array_size=1 << 8, substitution_limit=100)
+    s, cnt = set(), 0
     for _ in range(100000):
         op = random.randint(1, 10)
         value = random.randint(1, 1000)
@@ -120,12 +120,12 @@ def test_real_scenario():
 
 
 def test_self_defined_class_scenario():
-    filter = CuckooFilter(bucket_size=4, array_size= 1 << 7, substitution_limit=100)
+    filter = CuckooFilter(bucket_size=4, array_size=1 << 7, substitution_limit=100)
     s = set()
     cnt = 0
     for _ in range(100000):
-        x , y = random.randint(1, 20), random.randint(1, 20)
-        p = Point(x , y)
+        x, y = random.randint(1, 20), random.randint(1, 20)
+        p = Point(x, y)
         # add: 4, remove: 3, get: 3
         op = random.randint(1, 10)
         if op <= 4:
@@ -149,7 +149,7 @@ def test_self_defined_class_scenario():
 
 
 def test_add_too_much_data_to_cuckoo_filter():
-    filter = CuckooFilter(bucket_size = 4, array_size = 16, substitution_limit=10)
+    filter = CuckooFilter(bucket_size=4, array_size=16, substitution_limit=10)
     for i in range(64):
         filter.add(i)
     assert len(filter) == 64
@@ -158,7 +158,7 @@ def test_add_too_much_data_to_cuckoo_filter():
 
 
 def test_add_hybrid_data_to_cuckoo_filter():
-    filter = CuckooFilter(bucket_size = 4, array_size = 16, substitution_limit = 10)
+    filter = CuckooFilter(bucket_size=4, array_size=16, substitution_limit=10)
 
     filter.add(10)
     filter.add(100)
@@ -167,10 +167,16 @@ def test_add_hybrid_data_to_cuckoo_filter():
     filter.add((1, 100))
     filter.add(Point(10, 100))
 
-    assert 10 in filter and 100 in filter and \
-           "abcd" in filter and 12.24 in filter and \
-           (1, 100) in filter and Point(10, 100) in filter
+    assert (
+        10 in filter
+        and 100 in filter
+        and "abcd" in filter
+        and 12.24 in filter
+        and (1, 100) in filter
+        and Point(10, 100) in filter
+    )
     assert len(filter) == 6
+
 
 # testing class
 class Point(object):
